@@ -59,7 +59,7 @@ jobs:
             # 이 값으로 cache가 hit 됐는지 안 됐는지 알 수 있다
             # 이 값이 true가 아닐때만 `npm install` 실행
             - name: Install Dependencies
-              if: steps.cache.outputs.cache-hit !== 'true'
+              if: steps.cache.outputs.cache-hit != 'true'
               run: npm install
 
             # 아래 로직은 우리가 만든 프로젝트의 lint, tsc, build를 테스트하는 곳
