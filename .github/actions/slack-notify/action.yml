@@ -1,0 +1,47 @@
+# slack-notify.yml
+
+# workflow의 이름
+name: 'slack-notify'
+
+# test-every-push.yml 파일에서 actions/setup-node@v2를 사용할때
+# with로 node-version을 넘겼던 것 처럼 해당 값을 넘기기 위한 과정
+# job의 실패 / 성공에 대한 값, 슬랙 알림을 보낼 값인
+# status와 slack_incoming_url을 받는다
+inputs:
+    status:
+        # 필수값 지정 가능
+        required: false
+        # status는 필수값이 아니므로 status라는 값이 input으로 들어오지 않으면
+        # default로 failure를 사용
+        default: 'failure'
+    slack_incoming_url:
+        required: true
+
+# using: 'composite'라는 값을 필수로 지정, **직접 Action을 만든다는 의미**
+runs:
+    using: 'composite'
+
+    # 마찬가지로 step을 가지게 된다
+    steps:
+        - name: Send slack
+          # shell script를 사용할 예정이라
+          # shell이라는 키워드에 bash라는 값 입력
+          shell: bash
+          # run 뒤에 '|'를 붙여서 스크립트를 여러 줄로 사용할 수 있다
+          run: |
+              # 전달받은 status 값을 이용해서 성공, 실패를 판단하고,
+              # 그에 따른 이모티콘 지정
+              if [ "${{ inputs.status }}" = "success" ]; then
+                 EMOTICON="✅"
+              else
+                 EMOTICON="⛔"
+                 fi
+
+                 # {GITHUB_REPOSITORY}, ${GITHUB_WORKFLOW}, ${GITHUB_RUN_ID} ..
+                 # 와 같은 값들은 Github Actions에서 제공하는 환경변수
+                 # 이 환경변수들을 이용해서 슬랙 알림이 왔을 때 어떤 부분에서 실패했는지
+                 # 바로 클릭해서 Github 페이지를 띄울 수 있도록 한다
+                 MSG="{ \"text\":\">${EMOTICON} workflow (<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|${GITHUB_WORKFLOW}>) in <https://github.com/${GITHUB_REPOSITORY}|${GITHUB_REPOSITORY}>\n><https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}/checks|${GITHUB_JOB}> job ${{ inputs.status }}, branch=\`${GITHUB_REF#refs/heads/}\`\"}
+
+                 # input으로 받은 slack_incoming_url과 MSG를 이용해 슬랙 알림
+                 curl -X POST -H 'Content-type: application/json' --data "${MSG}" "${{ inputs.slack_incoming_url }}"

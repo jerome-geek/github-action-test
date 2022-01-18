@@ -76,3 +76,21 @@ jobs:
               if: ${{ always() }}
             - run: npm run build
               if: ${{ always() }}
+
+            # 실패했을 경우
+            - name: Send slack when failed
+              if: ${{ failure() }}
+              # '직접' 만든 Action이므로 uses 키워드를 이용해 아래 경로를 입력
+              uses: ../actions/slack-notify/action.yml
+              # with 키워드와 함께 slack_incoming_url 값으로 넘겨준다
+              with:
+                  slack_incoming_url: ${{ secrets.SLACK_INCOMING_URL }}
+
+            # 성공했을 경우
+            - name: Send slack if completed
+              if: ${{ success() }}
+              uses: ../actions/slack-notify/action.yml
+              # status input은 받는 쪽에서 default 값을 정해놨기 때문에 success일 때만 넘겨준다
+              with:
+                  status: success
+                  slack_incoming_url: ${{ secrets.SLACK_INCOMING_URL }}
