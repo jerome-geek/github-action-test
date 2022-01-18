@@ -1,0 +1,78 @@
+# test-every-push.yml
+
+# workflow의 이름. 나중에 해당 값을 사용할 수 있기 때문에 유니크하게 사용
+name: 'test-every-push'
+
+# workflow를 동작하게 하는 trigger
+# repository에 push 이벤트가 발생할 때마다 실행
+on: push
+
+# job은 사용자가 정한 플랫폼을 통해 step이라는 일련의 과정 실행
+# 여러 개의 job을 사용할 수 있으며, 여러 개의 job을 사용할 때는 서로 정보 교환도 가능
+# 그리고 각각 독립적으로도 실행할 수 있음
+# 해당 예제는 간단한 workflow이므로 하나의 job만 갖도록 함
+jobs:
+    test:
+        # job의 이름을 정해줌
+        name: Test line, tsc ,build
+        # 해당 job을 리눅스 환경에서 사용, 다른 플랫폼도 가능
+        runs-on: ubuntu-latest
+
+        # job 안에는 step이라는 키워드가 옴. step은 shell script를 실행할 수 있고,
+        # 누군가 만들어 놓은 Action을 사용할 수도 있음
+        steps:
+            # Github Actions는 해당 프로젝트를 리눅스 환경에 checkout하고 나서 실행
+            # 마치 우리가 브랜치를 하만들 때 checkout하는 것처럼 꼭 필요!
+            # 참고로 아래 코드는 누군가 만들어놓은 Action을 사용
+            # 만들어 놓은 Action을 사용할 때는 uses라는 키워드 사용
+            - uses: actions/checkout@v2
+
+            # 해당 환경을 Node.js위에서 실행하겠다고 명시
+            # 마찬가지로 누군가 만들어 놓은 Action
+            - name: Use Node.js
+              uses: actions/step-node@v2
+              # with라는 키워드로 Action에 값을 전달할 수 있ㅆ음
+              # 이 Action은 node-version이라는 값을 받을 수 있기 때문에
+              # 이전에 만들어놓은 NODE_VERSION이라는 Secret을 전달
+              # ${{ secrets.XXX }}라는 값으로 Github의 Secrets 값을 가져올 수 있음
+              # node-version은 16.13.1이 된다
+              with:
+                  node-version: ${{ secrets.NODE_VERSION }}
+
+            # 해당 프로젝트의 node_modules를 검사해서 모듈 변화가 있을때만 npm install
+            - name: Cache node modules
+              # 모듈 변화가 있을때만 npm install을 할 수 있는 Action
+              uses: actions/cache@v2
+              # 해당 step을 대표하는 id설정, 해당 값은 뒤의 step에서 사용
+              id: cache
+              with:
+                  # npm_modules라는 폴더 검사
+                  path: node_modules
+                  # 아래의 키 값으로 cache가 되어있는지 확인
+                  key: npm-packages-${{ hashFiles('**/package-lock.json') }}
+
+            # 위 step에서 node_modules에 대한 cache 검사 후
+            # 만약 모듈에 변한 게 있다면 `npm install`을 실행하고 아니면 해당 step을 건너뜀
+            # if 키워드는 해당 스텝을 실행할지 말지를 결정할 수 있는 키워드
+            # `step.cache.outputs.cache-hit`이라는 값은
+            # cache라는 id 값을 가진 step에서는 cache-hit이라는 output이 있기 때문에
+            # 이 값으로 cache가 hit 됐는지 안 됐는지 알 수 있다
+            # 이 값이 true가 아닐때만 `npm install` 실행
+            - name: Install Dependencies
+              if: steps.cache.outputs.cache-hit !== 'true'
+              run: npm install
+
+            # 아래 로직은 우리가 만든 프로젝트의 lint, tsc, build를 테스트하는 곳
+            # run 키워드는 `npm start`와 같이 커맨드 명령어를 입력할 수 있게 해주는 키워드
+            # `npm run xxx`를 사용하려면 package.json의 script를 확인
+            - run: npm run lint
+              # `if: ${{ always() }}`라는 문법은
+              # 만약 해당 키워드에서 에러가 난다면 바로 workflow가 끝나기 때문에
+              # 해당 커맨드에서 에러가 나더라도 다음 커맨드가 실행될 수 있도록 해준다
+              # 아래의 예에서는 `npm run lint`에서 에러가 나더라도
+              # `npm run tsc`, `npm run build`를 실행하고 종료
+              if: ${{ always() }}
+            - run: npm run tsc
+              if: ${{ always() }}
+            - run: npm run build
+              if: ${{ always() }}
